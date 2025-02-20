@@ -1,18 +1,29 @@
-from flask import Flask, request, render_template, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request
+from flask_mail import Mail, Message
 import os
 
 app = Flask(__name__)
+
+# Configure Flask-Mail
+app.config["MAIL_SERVER"] = "smtp.gmail.com"
+app.config["MAIL_PORT"] = 465
+app.config["MAIL_USE_SSL"] = True
+app.config["MAIL_USERNAME"] = "your-email@gmail.com"  # Replace with your email
+app.config["MAIL_PASSWORD"] = "your-app-password"  # Replace with your app password
+
+mail = Mail(app)
+
 UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Ensure the uploads folder exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route("/")
-def home():
-    return render_template("index.html")  # Load the HTML page
+def index():
+    return render_template("index.html")
 
-@app.route("/upload", methods=["POST"])
-def upload_file():
+@app.route("/send_email", methods=["POST"])
+def send_email():
     if "file" not in request.files:
-        return "No file selected", 400
+        return "No file uploaded", 400
 
     file = request.files["file"]
     if file.filename == "":
@@ -21,21 +32,20 @@ def upload_file():
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
 
-    # Generate a file URL to attach in Gmail
-    file_url = request.host_url + "download/" + file.filename
+    recipient_email = "onecuteaass@gmail.com"  # Default recipient
 
-    # Get recipient email
-    recipient = request.form.get("recipient", "")
+    # Create and send email
+    msg = Message(
+        subject="Attached Document",
+        sender=app.config["MAIL_USERNAME"],
+        recipients=[recipient_email],
+        body="Please find the attached document.",
+    )
+    with app.open_resource(file_path) as fp:
+        msg.attach(file.filename, "application/octet-stream", fp.read())
 
-    # Gmail Intent (works on Android)
-    gmail_intent = f"mailto:{recipient}?subject=Attached%20Document&body=Please%20find%20the%20attached%20file.%0A{file_url}"
-
-    return redirect(gmail_intent)
-
-@app.route("/download/<filename>")
-def download_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    mail.send(msg)
+    return "Email sent successfully!"
 
 if __name__ == "__main__":
     app.run(debug=True)
-
